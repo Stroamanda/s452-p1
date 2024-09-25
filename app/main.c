@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <signal.h>
 #include <stdlib.h>
 #include "../src/lab.h"
 #include "../src/lab.c"
@@ -11,6 +12,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/types.h>
+#include <termios.h>
+#include <unistd.h>
 
 int main(int argc, char *argv[]) {
   int opt;
@@ -36,23 +40,10 @@ int main(int argc, char *argv[]) {
   const char *changeDir = "cd ";
   using_history();
 
-  // 
   while ((line=readline(prompt)) != NULL) {
-    char *argShell[_SC_ARG_MAX];
-    char *line2 = line;
     bool tracker = false;
 
-    // turns line into an array of values separated by spaces
-    char *val = strtok(line2, " ");
-    int curr = 0;
-    while (val != NULL) {
-      argShell[curr++] = val;
-      val = strtok(NULL, " ");
-    }
-    argShell[curr] = NULL;
-
-    // checks to make sure the process is good to go
- 
+    // Checks for exit command
     if (strcmp(line, "exit") == 0) {
       free(line);
       exit(0);
@@ -69,13 +60,17 @@ int main(int argc, char *argv[]) {
 
     }
 
+    // parse command into values into an array
+    char **argShell = cmd_parse(line);
     int pid = fork();
     
     if (pid == 0) {
+      struct shell theShell;
+      sh_init(&theShell);
       // if it's not one of the above commands, use execvp
       int status = execvp(argShell[0], argShell);
 
-      // if the command is not in the execvp, tell the user the command doesn't exist
+      // if the command is also not in the execvp, tell the user the command doesn't exist
       if (status == -1 && tracker == false) {
           printf("That Command Doesn't Exist\n");
       }
@@ -88,6 +83,7 @@ int main(int argc, char *argv[]) {
 
     add_history(line);
     free(line);
+    cmd_free(argShell);
   }
 
 
