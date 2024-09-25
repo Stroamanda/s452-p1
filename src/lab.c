@@ -40,3 +40,17 @@
      }
     return 0;
   }
+
+  char **cmd_parse(char const *line) {}
+
+  void cmd_free(char ** line) {}
+
+  char *trim_white(char *line) {}
+
+  bool do_builtin(struct shell *sh, char **argv) {}
+
+  void sh_init(struct shell *sh) {}
+
+  void sh_destroy(struct shell *sh) {}
+
+  void parse_args(int argc, char **argv) {}
