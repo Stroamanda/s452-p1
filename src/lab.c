@@ -23,18 +23,27 @@
 
   int change_dir(char **dir) {
     char *direct = "";
+
+    // if there is only "cd"
      if (strcmp(*dir, "cd") == 0) {
+      // if env doesn't know what home is
       if (getenv("HOME") == NULL) {
+        // grab home directory of user
         direct = getpwuid(getuid())->pw_dir;
         chdir(direct);
       } else {
+        // grab home directory if known
         direct = getenv("HOME");
         chdir(direct);
       }
+      // if there is a directory input with cd
      } else if (strncmp(*dir, "cd ", strlen("cd ")) == 0) {
+        // check to make sure there is something there if there is a space
         if (strchr(*dir + strlen("cd "), ' ') == NULL) {
+          // set direct to the directory name
           direct = *dir + strlen("cd ");
 
+          // updates directory if it exists but also checks if it's not a directory
           if (chdir(direct) != 0) {
             printf("Couldn't Find Directory\n");
           } 
@@ -66,15 +75,19 @@
     free(line);
   }
 
-  char *trim_white(char *line) {}
+  char *trim_white(char *line) {
+    
+  }
 
   bool do_builtin(struct shell *sh, char **argv) {}
 
   void sh_init(struct shell *sh) {
+    // code from the manual: https://www.gnu.org/software/libc/manual/html_node/Initializing-the-Shell.html
+    *sh = theShell;
     sh->shell_terminal = STDIN_FILENO;
     sh->shell_is_interactive = isatty (sh->shell_terminal);
 
-  if (sh->shell_is_interactive) {
+    if (sh->shell_is_interactive) {
       /* Loop until we are in the foreground.  */
       while (tcgetpgrp (sh->shell_terminal) != (sh->shell_pgid = getpgrp ()))
         kill (- sh->shell_pgid, SIGTTIN);

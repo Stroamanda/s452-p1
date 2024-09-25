@@ -20,7 +20,12 @@ int main(int argc, char *argv[]) {
   int opt;
   char cwd[1024];
   char *prompt;
+
+  // create process for terminal
+  struct shell theShell;
+  sh_init(&theShell);
   
+  // set prompt
   prompt = strcat(strcat(getcwd(cwd, sizeof(cwd)), " "), get_prompt(NULL));
 
   // checks for extra arguments
@@ -47,6 +52,8 @@ int main(int argc, char *argv[]) {
     if (strcmp(line, "exit") == 0) {
       free(line);
       exit(0);
+
+      // checks for cd command
     } else if (strncmp(line, "cd ", strlen(changeDir)) == 0 || strcmp(line, "cd") == 0) {
       tracker = true;
       change_dir(&line);
@@ -65,8 +72,18 @@ int main(int argc, char *argv[]) {
     int pid = fork();
     
     if (pid == 0) {
-      struct shell theShell;
-      sh_init(&theShell);
+      pid_t child = getpid();
+      setpgid(child, child);
+
+      // set to child
+      tcsetpgrp(theShell.shell_terminal,child);
+
+      // enable signals
+      signal (SIGINT, SIG_DFL);
+      signal (SIGQUIT, SIG_DFL);
+      signal (SIGTSTP, SIG_DFL);
+      signal (SIGTTIN, SIG_DFL);
+      signal (SIGTTOU, SIG_DFL);
       // if it's not one of the above commands, use execvp
       int status = execvp(argShell[0], argShell);
 
@@ -74,8 +91,21 @@ int main(int argc, char *argv[]) {
       if (status == -1 && tracker == false) {
           printf("That Command Doesn't Exist\n");
       }
-    } else { // once the process finishes
+      exit(0);
+    } else { // once the child process finishes
+
       waitpid(pid, NULL, 0);
+
+      // give back control to parent
+      tcsetpgrp (theShell.shell_terminal, theShell.shell_pgid);
+
+      // disable the signals again
+      signal (SIGINT, SIG_IGN);
+      signal (SIGQUIT, SIG_IGN);
+      signal (SIGTSTP, SIG_IGN);
+      signal (SIGTTIN, SIG_IGN);
+      signal (SIGTTOU, SIG_IGN);
+      signal (SIGCHLD, SIG_IGN);
     }
 
     // set prompt to include the current directory
