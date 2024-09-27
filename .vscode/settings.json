@@ -1,6 +1,8 @@
 {
     "files.associations": {
         "stdio.h": "c",
-        "readline.h": "c"
+        "readline.h": "c",
+        "sstream": "c",
+        "types.h": "c"
     }
 }

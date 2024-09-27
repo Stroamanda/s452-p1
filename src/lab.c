@@ -56,7 +56,7 @@
 
   char **cmd_parse(char const *line) {
     char **theArray = malloc (sizeof (char) * _SC_ARG_MAX);
-    char *line2 = (char *) line;
+    char *line2 = strdup(line);
 
     char *val = strtok(line2, " ");
     int curr = 0;
@@ -76,10 +76,23 @@
   }
 
   char *trim_white(char *line) {
-    
+    if (line == NULL) {
+      return NULL;
+    }
+    char *temp = malloc(strlen(line) + 1);
+    int val = 0;
+    for (int i = 0; i < strlen(line); i++) {
+      if (line[i] != ' ') {
+          temp[val] = line[i];
+          val++;
+      }
+    }
+    temp[val] = '\0';
+    return temp;
   }
 
-  bool do_builtin(struct shell *sh, char **argv) {}
+  bool do_builtin(struct shell *sh, char **argv) {
+  }
 
   void sh_init(struct shell *sh) {
     // code from the manual: https://www.gnu.org/software/libc/manual/html_node/Initializing-the-Shell.html
