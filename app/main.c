@@ -100,7 +100,6 @@ int main(int argc, char *argv[]) {
                if (WIFEXITED(status)) {
                   printf("[%d] Done %s \n", backgroundArray[i].id, backgroundArray[i].command);
                   backgroundArray[i].pid = 0;
-                  backgroundArray[i].command = " ";
                   // free(backgroundArray[i].command);
                }
             }
