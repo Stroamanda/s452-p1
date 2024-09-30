@@ -2,25 +2,14 @@
 #include <signal.h>
 #include <stdlib.h>
 #include "../src/lab.h"
-#include "../src/lab.c"
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <pwd.h>
-#include <pwd.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/wait.h>
-#include <sys/types.h>
 #include <termios.h>
-#include <unistd.h>
-
-struct Map {
-  int id;
-  int pid;
-  char command[1024];
-};
 
 void removeAmster(char *line);
 void trimEnd(char *line);
@@ -28,18 +17,20 @@ void trimEnd(char *line);
 int main(int argc, char *argv[]) {
   int opt;
   int id = 1;
-  int index = 0;
-  char cwd[1024];
+  // char cwd[1024];
   char *prompt;
-  struct Map backgroundArray[1024];
   bool background = false;
+  bool doesntExist = false;
 
   // create process for terminal
   struct shell theShell;
   sh_init(&theShell);
+  theShell.mapCount = 0;
+  theShell.endJobID = 1;
   
   // set prompt
-  prompt = strcat(strcat(getcwd(cwd, sizeof(cwd)), " "), get_prompt(NULL));
+  // prompt = strcat(strcat(getcwd(cwd, sizeof(cwd)), " "), get_prompt("MY_PROMPT"));
+  prompt = get_prompt("MY_PROMPT");
 
   // checks for extra arguments
   while((opt = getopt(argc, argv, "v")) != -1) {
@@ -55,18 +46,14 @@ int main(int argc, char *argv[]) {
   }
 
   char *line;
-  const char *changeDir = "cd ";
-  int isBackground = false;
   using_history();
 
   while ((line=readline(prompt)) != NULL) {
-    prompt = strcat(strcat(getcwd(cwd, sizeof(cwd)), " "), get_prompt(NULL));
-    bool tracker = false;
-    char *trimLine = trim_white(line);
+    trim_white(line);
     char keepAm[strlen(line) + 1];
     strcpy(keepAm, line);
         
-    if (trimLine[strlen(trimLine) - 1] == '&') {
+    if (strcmp(line, "") != 0 && line[strlen(line) - 1] == '&') {
       removeAmster(line);
       trimEnd(line);
       background = true;
@@ -74,40 +61,28 @@ int main(int argc, char *argv[]) {
       background = false;
     }
 
-    // Checks for exit command
-    if (strcmp(line, "exit") == 0) {
-      free(line);
-      exit(0);
-
-      // checks for cd command
-    } else if (strncmp(line, "cd ", strlen(changeDir)) == 0 || strcmp(line, "cd") == 0) {
-      tracker = true;
-      change_dir(&line);
-
-      // checks for history command, then lists all the commands that have been written
-    } else if (strcmp(line, "history") == 0) {
-      tracker = true;
-      for (int i = 0; i < history_length; i++) {
-          printf("%s\n", history_list()[i]->line);
-      }
-
-    } else if (strcmp(line, "") == 0) {
-        tracker = true;
-        int status;
-        for (int i = 0; i < index; i++) {
-            if (backgroundArray[i].pid != 0) {
-               pid_t result = waitpid(backgroundArray[i].pid, &status, WNOHANG);
-               if (WIFEXITED(status)) {
-                  printf("[%d] Done %s \n", backgroundArray[i].id, backgroundArray[i].command);
-                  backgroundArray[i].pid = 0;
-                  // free(backgroundArray[i].command);
-               }
-            }
-        }
-        index = 0;
-    }
     // parse command into values into an array
     char **argShell = cmd_parse(line);
+    bool tracker = false;
+    if (strcmp(line, "") == 0) {
+        tracker = true;
+        int status;
+        for (int i = 0; i < theShell.mapCount; i++) {
+            if (theShell.backgroundArray[i].pid != 0) {
+              pid_t result = waitpid(theShell.backgroundArray[i].pid, &status, WNOHANG);
+              if (result < 0) {
+              printf("[%d] Done %s \n", theShell.backgroundArray[i].id, theShell.backgroundArray[i].command);
+              theShell.backgroundArray[i].pid = 0;
+              }
+            }
+        }
+    } else {
+        tracker = do_builtin(&theShell, argShell);
+    }
+
+    // if you want directory to display
+    //prompt = strcat(strcat(getcwd(cwd, sizeof(cwd)), " "), get_prompt("MY_PROMPT"));
+
     int pid = fork();
     
     if (pid == 0) {
@@ -130,30 +105,45 @@ int main(int argc, char *argv[]) {
       signal (SIGTTIN, SIG_DFL);
       signal (SIGTTOU, SIG_DFL);
       // if it's not one of the above commands, use execvp
-      int status = execvp(argShell[0], argShell);
-      // if the command is also not in the execvp, tell the user the command doesn't exist
-      if (status == -1 && tracker == false) {
+      int status;
+      if (tracker == false) {
+        status = execvp(argShell[0], argShell);
+
+        // if the command is also not in the execvp, tell the user the command doesn't exist
+        if (status == -1) {
           printf("That Command Doesn't Exist\n");
+          _exit(42);
+      }
       }
       exit(0);
     } else { // once the child process finishes
+        int status;
 
-      if (background) {
-        printf("[%d] %d %s\n", id, pid, keepAm);
-        backgroundArray[index].pid = pid;
-        strcpy(backgroundArray[index].command, keepAm);
-        backgroundArray[index].id = id;
-        index++;
-        id++;
-      }
-
-      // only wait to finish if not a background process
+        // only wait to finish if not a background process
       if (!background) {
-          waitpid(pid, NULL, 0);
+            waitpid(pid, &status, 0);
+        
+        if (WIFEXITED(status) && WEXITSTATUS(status) == 42) {
+              doesntExist = true;
+        }
 
           // give back control to parent
-          tcsetpgrp (theShell.shell_terminal, theShell.shell_pgid);
+        tcsetpgrp (theShell.shell_terminal, theShell.shell_pgid);
       }
+
+      if (!doesntExist && background) {
+            printf("[%d] %d %s\n", id, pid, keepAm);
+            theShell.backgroundArray[theShell.mapCount].pid = pid;
+            strcpy(theShell.backgroundArray[theShell.mapCount].command, keepAm);
+            theShell.backgroundArray[theShell.mapCount].id = id;
+            theShell.backgroundArray[theShell.mapCount].reportedDone = false;
+            theShell.backgroundArray[theShell.mapCount].reportedRunning = false;
+            theShell.backgroundArray[theShell.mapCount].jobID = theShell.endJobID++;
+            theShell.mapCount++;
+            id++;
+      }
+
+      doesntExist = false;
 
       // disable the signals again
       signal (SIGINT, SIG_IGN);
@@ -166,7 +156,6 @@ int main(int argc, char *argv[]) {
 
     add_history(line);
     free(line);
-    free(trimLine);
     cmd_free(argShell);
   }
 
@@ -174,8 +163,9 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
+// Removes & from the end so command can be processed
 void removeAmster(char * line) {
-  for (int i = strlen(line); i > 0; i--) {
+  for (int i = (int)strlen(line); i > 0; i--) {
       if (line[i] == '&') {
         line[i] = ' ';
         break;
@@ -183,10 +173,11 @@ void removeAmster(char * line) {
   }
 }
 
+// trims any trailing whitespace
 void trimEnd(char *line) {
   int len = strlen(line);
     while (len > 0 && line[len - 1] == ' ') {
       len--;
     }
-    line[len] = '\0'; // Null-terminate the string
+    line[len] = '\0';
 }

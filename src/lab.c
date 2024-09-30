@@ -6,26 +6,33 @@
 #include <sys/types.h>
 #include <pwd.h>
 #include <termios.h>
-#include <unistd.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <readline/readline.h>
+#include <readline/history.h>
+#include <sys/wait.h>
 
   struct shell theShell;
 
   char *get_prompt(const char *env) {
-      theShell.prompt = getenv("MY_PROMPT");
+    char * prompt;
+    if (env != NULL) {
+      prompt = getenv(env);
+    } 
+    
+    if (prompt == NULL) {
+        prompt = "shell>";
+    }
 
-      if (theShell.prompt == NULL) {
-        theShell.prompt = "$ ";
-      }
-
-      return theShell.prompt;
+      return strdup(prompt);
   }
 
   int change_dir(char **dir) {
     char *direct = "";
 
     // if there is only "cd"
-     if (strcmp(*dir, "cd") == 0) {
+     if (dir[1] == NULL) {
       // if env doesn't know what home is
       if (getenv("HOME") == NULL) {
         // grab home directory of user
@@ -37,25 +44,20 @@
         chdir(direct);
       }
       // if there is a directory input with cd
-     } else if (strncmp(*dir, "cd ", strlen("cd ")) == 0) {
-        // check to make sure there is something there if there is a space
-        if (strchr(*dir + strlen("cd "), ' ') == NULL) {
-          // set direct to the directory name
-          direct = *dir + strlen("cd ");
-
-          // updates directory if it exists but also checks if it's not a directory
-          if (chdir(direct) != 0) {
-            printf("Couldn't Find Directory\n");
-          } 
-        } else {
+     } else {
+        // updates directory if it exists but also checks if it's not a directory
+        if (chdir(dir[1]) != 0) {
           printf("Couldn't Find Directory\n");
-        }
+        } 
+
      }
     return 0;
   }
 
   char **cmd_parse(char const *line) {
-    char **theArray = malloc (sizeof (char) * _SC_ARG_MAX);
+    long argMax = sysconf(_SC_ARG_MAX);
+
+    char **theArray = malloc (sizeof (char*) * argMax);
     char *line2 = strdup(line);
 
     char *val = strtok(line2, " ");
@@ -63,35 +65,94 @@
 
     // turns line into an array of values separated by spaces
     while (val != NULL) {
-      theArray[curr++] = val;
+      theArray[curr++] = strdup(val);
       val = strtok(NULL, " ");
     }
     theArray[curr] = NULL;
+    free(line2);
 
     return theArray;
   }
 
   void cmd_free(char ** line) {
-    free(line);
+    if (line != NULL) {
+      for (int i = 0; line[i] != NULL; i++) {
+        free(line[i]);
+      }
+      free(line);
+    }
   }
 
   char *trim_white(char *line) {
-    if (line == NULL) {
-      return NULL;
-    }
-    char *temp = malloc(strlen(line) + 1);
-    int val = 0;
-    for (int i = 0; i < strlen(line); i++) {
-      if (line[i] != ' ') {
-          temp[val] = line[i];
-          val++;
+    int len = strlen(line);
+      while (len > 0 && line[len - 1] == ' ') {
+        len--;
       }
+      line[len] = '\0';
+
+    char *start = line;
+    while (*start != '\0' && isspace((unsigned char)*start)) {
+      start++;
     }
-    temp[val] = '\0';
-    return temp;
+
+    if (start != line) {
+        memmove(line, start, len - (start - line) + 1);
+    }
+    return line;
   }
 
   bool do_builtin(struct shell *sh, char **argv) {
+    char *command = argv[0];
+    bool tracker = false;
+
+    if (strcmp(command, "exit") == 0) {
+      exit(0);
+
+      // checks for cd command
+    } else if (strcmp(command, "cd") == 0) {
+      tracker = true;
+      change_dir(argv);
+
+      // checks for history command, then lists all the commands that have been written
+    } else if (strcmp(command, "history") == 0) {
+      tracker = true;
+      for (int i = 0; i < history_length; i++) {
+          printf("%s\n", history_list()[i]->line);
+      }
+    // Checks for enter command, then lists all recently completed jobs since the last time it was entered
+    } else if (strcmp(command, "jobs") == 0) {
+        tracker = true;
+        int status;
+        for (int i = 0; i < sh->mapCount; i++) {
+            if (sh->backgroundArray[i].pid != 0) {
+               pid_t result = waitpid(sh->backgroundArray[i].pid, &status, WNOHANG);
+               if (result == 0 && sh->backgroundArray[i].reportedRunning == false) {
+                  printf("[%d] %d Running %s \n", sh->backgroundArray[i].jobID, sh->backgroundArray[i].pid, sh->backgroundArray[i].command);
+                  sh->backgroundArray[i].reportedRunning = true;
+               } else if (result < 0 && sh->backgroundArray[i].reportedDone == false) {
+                  printf("[%d] Done %s \n", sh->backgroundArray[i].jobID, sh->backgroundArray[i].command);
+                  sh->backgroundArray[i].reportedDone = true;
+               }
+            }
+        }
+
+        bool finishedAllJobs = true;
+        for (int i = 0; i < sh->mapCount; i++) {
+            if (sh->backgroundArray[i].reportedDone == false) {
+                finishedAllJobs = false;
+                break;
+            } else {
+              finishedAllJobs = true;
+            }
+        }
+
+        if (finishedAllJobs == true) {
+            sh->endJobID = 1;
+        }
+
+    }
+
+    return tracker;
   }
 
   void sh_init(struct shell *sh) {
@@ -128,6 +189,8 @@
     }
   }
 
-  void sh_destroy(struct shell *sh) {}
+  void sh_destroy(struct shell *sh) {
+    free(sh);
+  }
 
-  void parse_args(int argc, char **argv) {}
+ // void parse_args(int argc, char **argv) {}

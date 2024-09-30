@@ -15,13 +15,25 @@ extern "C"
 {
 #endif
 
+  struct Map {
+  int id;
+  int pid;
+  int jobID;
+  bool reportedDone;
+  bool reportedRunning;
+  char command[1024];
+  };
+
   struct shell
   {
     int shell_is_interactive;
     pid_t shell_pgid;
     struct termios shell_tmodes;
     int shell_terminal;
-    char *prompt;
+    int mapCount;
+    int endJobID;
+
+    struct Map backgroundArray[1024];
   };
 
 
