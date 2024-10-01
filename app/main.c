@@ -49,6 +49,7 @@ int main(int argc, char *argv[]) {
   using_history();
 
   while ((line=readline(prompt)) != NULL) {
+    doesntExist = false;
     trim_white(line);
     char keepAm[strlen(line) + 1];
     strcpy(keepAm, line);
@@ -87,6 +88,7 @@ int main(int argc, char *argv[]) {
     
     if (pid == 0) {
       pid_t child = getpid();
+
       setpgid(child, child);
 
       if (background) {
@@ -112,8 +114,9 @@ int main(int argc, char *argv[]) {
         // if the command is also not in the execvp, tell the user the command doesn't exist
         if (status == -1) {
           printf("That Command Doesn't Exist\n");
+          doesntExist = true;
           _exit(42);
-      }
+        }
       }
       exit(0);
     } else { // once the child process finishes
@@ -121,7 +124,7 @@ int main(int argc, char *argv[]) {
 
         // only wait to finish if not a background process
       if (!background) {
-            waitpid(pid, &status, 0);
+        waitpid(pid, &status, 0);
         
         if (WIFEXITED(status) && WEXITSTATUS(status) == 42) {
               doesntExist = true;
@@ -131,7 +134,7 @@ int main(int argc, char *argv[]) {
         tcsetpgrp (theShell.shell_terminal, theShell.shell_pgid);
       }
 
-      if (!doesntExist && background) {
+      if (doesntExist == false && background) {
             printf("[%d] %d %s\n", id, pid, keepAm);
             theShell.backgroundArray[theShell.mapCount].pid = pid;
             strcpy(theShell.backgroundArray[theShell.mapCount].command, keepAm);
@@ -142,8 +145,6 @@ int main(int argc, char *argv[]) {
             theShell.mapCount++;
             id++;
       }
-
-      doesntExist = false;
 
       // disable the signals again
       signal (SIGINT, SIG_IGN);

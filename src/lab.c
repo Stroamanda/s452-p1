@@ -55,7 +55,7 @@
   }
 
   char **cmd_parse(char const *line) {
-    long argMax = sysconf(_SC_ARG_MAX);
+    int argMax = sysconf(_SC_ARG_MAX);
 
     char **theArray = malloc (sizeof (char*) * argMax);
     char *line2 = strdup(line);
