@@ -82,11 +82,16 @@ void *dequeue(queue_t q) {
     }
 
     void *dequeuedItem = q->data[0];
+
+    // Set current data to the value at i + 1 until second to last item in list
     for (int i = 0; i < q->maxSize - 1; i++) {
         q->data[i] = q->data[i + 1];
     }
 
+    // decrement currSize
     q->currSize--;
+
+    // Set the last value to NULL since everything was shifted
     q->data[q->currSize] = NULL;
 
     pthread_cond_signal(&cond);
