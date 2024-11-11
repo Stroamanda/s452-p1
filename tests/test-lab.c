@@ -54,6 +54,17 @@ void test_mergesort_mt_small_three_threads(void)
 {
   mergesort_mt(actual, defaultSize, 3);
   qsort(expected, defaultSize, sizeof(int), compare_ints);
+    printf("Actual array:\n");
+    for (int i = 0; i < defaultSize; i++) {
+        printf("%d ", actual[i]);
+    }
+    printf("\n");
+
+        printf("expected array:\n");
+    for (int i = 0; i < defaultSize; i++) {
+        printf("%d ", expected[i]);
+    }
+    printf("\n");
   TEST_ASSERT_EQUAL_INT32_ARRAY(expected, actual, defaultSize);
 }
 
