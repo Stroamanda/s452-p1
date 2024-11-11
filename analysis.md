@@ -11,8 +11,9 @@ one thread on my implementation takes about 18 seconds compared to the example t
 about 12 seconds, so there could be some of the base code that could potentially be touched up.
 Though in consideration it does become under 2 seconds with 5 threads, making a bit less threads
 more efficient than the example graph shows. Though my best result was 10 threads while the example
-was 9, so I am not sure how important my 5 threads as being faster compared to the 5 threads in the
-example.
+was 9, Though my time may be a little bit faster even though it took 10 threads rather than 9.
+Also it might be interesting to consider that my program is a bit faster starting at 5 threads than
+the example one at 5 threads.
 
 ### Did you see a slow down at some point why or why not?
 So it initially started very slow, and then sped up before it started to slow down after
@@ -37,5 +38,6 @@ The most optimum number of threads was 10 for about 1.2 seconds, based on the av
 running the program itself on 10 threads.
 
 ### What was the slowest number of threads for your machine?
-The slowest number of threads was 1 thread at a total of 18 seconds, second slowest being 2 threads
-at about 5.7 seconds.
+The slowest number of threads was 1 thread at a total of 18 seconds, Though only having one
+thread virtually works the same as having no threads since the purpose is to improve efficiency with more threads.
+So the second slowest (or slowest number of threads in terms of having more than 1 thread) is 2 threads at about 5.7 seconds. 
