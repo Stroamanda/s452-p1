@@ -1,7 +1,7 @@
 ![Plot_of_Merge_Sort](./student_plot.png)
 ## Analysis
 
-# Were you able to generate something close to what the example showed? Why or why not.
+### Were you able to generate something close to what the example showed? Why or why not.
 The graph I got is pretty close to what the example showed, Though in my example,
 1 thread took a lot longer (18 seconds) to run than in the example, but in mine
 it got to less than 2 seconds after 5 threads compared to the example where it took
@@ -14,7 +14,7 @@ more efficient than the example graph shows. Though my best result was 10 thread
 was 9, so I am not sure how important my 5 threads as being faster compared to the 5 threads in the
 example.
 
-# Did you see a slow down at some point why or why not?
+## Did you see a slow down at some point why or why not?
 So it initially started very slow, and then sped up before it started to slow down after
 10-15 threads, becoming less efficient but still staying around 2 seconds. It slows down
 because at some point a certain amount of threads become unnecessary. Just like how having
