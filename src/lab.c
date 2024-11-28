@@ -69,7 +69,7 @@ void *buddy_malloc(struct buddy_pool *pool, size_t size) {
 
     if (pool->avail[kval].tag == BLOCK_AVAIL) {
         fprintf(stderr, "Block size 2^%zu is available\n", kval);
-    } else {
+    } else if (pool->avail[kval].tag == BLOCK_RESERVED) {
         fprintf(stderr, "No block of size 2^%zu available\n", kval);
     }
 
