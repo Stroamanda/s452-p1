@@ -68,6 +68,7 @@ void *buddy_malloc(struct buddy_pool *pool, size_t size) {
     // finds a spot in memory that is at least the size of the kval
     // if not find next larger size until free block
     for (size_t k = kval; k <= pool->kval_m; k++) {
+        fprintf(stderr, "Checking block %zu: avail[%zu] = %p, tag = %d\n", k, k, (void *)&pool->avail[k], pool->avail[k].tag);
         if (pool->avail[k].tag == BLOCK_AVAIL) {
             printf("Found block at %p\n", (void *)&pool->avail[k]);
             // "remove" from available list so no one else can use it
