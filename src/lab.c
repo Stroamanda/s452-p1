@@ -82,9 +82,7 @@ void *buddy_malloc(struct buddy_pool *pool, size_t size) {
                 buddy->next = pool->avail[k].next;
                 pool->avail[k].next = buddy;
             }
-            fprintf(stderr, "k = %zu, pool->avail[%zu] = %p, next = %p, prev = %p\n", 
-            k, k, (void *)&pool->avail[k], (void *)pool->avail[k].next, (void *)pool->avail[k].prev);
-            return (void *)((char *)pool->base + ((char *)&pool->avail[k] - (char *)pool->avail));
+            return (void *)((char *)pool->base + (k << DEFAULT_K));
         }
     }
     // if larger block isn't found, fails
