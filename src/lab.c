@@ -218,6 +218,8 @@ void buddy_init(struct buddy_pool *pool, size_t size) {
         pool->avail[i].prev = &pool->avail[i];
         pool->avail[i].kval = i;
         pool->avail[i].tag = BLOCK_UNUSED;
+
+        fprintf(stderr, "avail[%zu]: tag=%d, kval=%zu\n", i, pool->avail[i].tag, pool->avail[i].kval);
     }
 
     pool->avail[pool->kval_m].next = pool->base;
