@@ -67,12 +67,14 @@ void *buddy_malloc(struct buddy_pool *pool, size_t size) {
     size_t kval = btok(size);
     fprintf(stderr, "Requested size: %zu, kval: %zu\n", size, kval);
 
-    if (pool->avail[kval].tag == BLOCK_AVAIL) {
-        fprintf(stderr, "Block size 2^%zu is available\n", kval);
-    } else if (pool->avail[kval].tag == BLOCK_RESERVED) {
-        fprintf(stderr, "No block of size 2^%zu available\n", kval);
+    for (size_t k = kval; k <= pool->kval_m; k++) {
+        fprintf(stderr, "Checking for block of size 2^%zu: ", k);
+        if (pool->avail[k].tag == BLOCK_AVAIL) {
+            fprintf(stderr, "Block of size 2^%zu is available\n", k);
+        } else {
+            fprintf(stderr, "No block of size 2^%zu available\n", k);
+        }
     }
-
     // finds a spot in memory that is at least the size of the kval
     // if not find next larger size until free block
     for (size_t k = kval; k <= pool->kval_m; k++) {
