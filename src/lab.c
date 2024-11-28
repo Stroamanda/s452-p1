@@ -218,10 +218,6 @@ void buddy_init(struct buddy_pool *pool, size_t size) {
         pool->avail[i].prev = &pool->avail[i];
         pool->avail[i].kval = i;
         pool->avail[i].tag = BLOCK_UNUSED;
-
-        fprintf(stderr, "avail[%u]: next = %p, prev = %p, kval = %u, tag = %d\n", 
-                i, pool->avail[i].next, pool->avail[i].prev, pool->avail[i].kval, pool->avail[i].tag);
-
     }
 
     pool->avail[pool->kval_m].next = pool->base;
@@ -231,6 +227,15 @@ void buddy_init(struct buddy_pool *pool, size_t size) {
     ptr->kval = pool->kval_m;
     ptr->next = &pool->avail[pool->kval_m];
     ptr->prev = &pool->avail[pool->kval_m];
+
+    for (size_t k = 0; k <= pool->kval_m; k++) {
+        fprintf(stderr, "Checking for block of size 2^%zu: ", k);
+        if (pool->avail[k].tag == BLOCK_AVAIL) {
+            fprintf(stderr, "Block of size 2^%zu is available\n", k);
+        } else {
+            fprintf(stderr, "No block of size 2^%zu available\n", k);
+        }
+    }
 }
 
   /**
