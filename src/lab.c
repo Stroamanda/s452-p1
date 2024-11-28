@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <sys/mman.h>
 #include <stdio.h> 
+#include <string.h>
 
 
   /**
@@ -67,10 +68,10 @@ void *buddy_malloc(struct buddy_pool *pool, size_t size) {
 
     // finds a spot in memory that is at least the size of the kval
     // if not find next larger size until free block
-    for (int k = kval; k <= pool->kval_m; k++) {
+    for (size_t k = kval; k <= pool->kval_m; k++) {
         if (pool->avail[k].tag == BLOCK_AVAIL) {
             // "remove" from available list so no one else can use it
-            pool->avail[k].tag == BLOCK_RESERVED;
+            pool->avail[k].tag = BLOCK_RESERVED;
 
             while (k > kval) {
                 k--;
@@ -112,13 +113,18 @@ void buddy_free(struct buddy_pool *pool, void *ptr) {
     size_t blockSize = UINT64_C(1) << block->kval;
     size_t blockAddress = (char *) block - (char *) pool->base;
 
+    // check for buddy size k_val for block at address ptr
     while (block->kval < pool->kval_m) {
         struct avail *buddy = (struct avail *)((char *)pool->base + (blockAddress ^ blockSize));
+
+        // if buddy not available add freed block to kth list
         if (buddy->tag != BLOCK_AVAIL) {
             block->tag = BLOCK_AVAIL;
             pool->avail[block->kval].tag = BLOCK_AVAIL;
             break;
         }
+
+        // merge free block with buddy in kth list, set k = k + 1
         block = (struct avail *) ((char *) pool->base + (blockAddress & ~blockSize));
         block->tag = BLOCK_AVAIL;
         blockAddress = blockAddress & ~blockSize;
@@ -149,7 +155,38 @@ void buddy_free(struct buddy_pool *pool, void *ptr) {
    * @return Pointer to the new memory block
    */
 void *buddy_realloc(struct buddy_pool *pool, void *ptr, size_t size) {
+    if (size == 0 && ptr != NULL) {
+        buddy_free(pool, ptr);
+        return NULL;
+    } else if (ptr == NULL) {
+        return buddy_malloc(pool, size);
+    } 
 
+    size_t kval = btok(size);
+    struct avail *block = (struct avail *) ptr;
+
+    // if the same size no need to reallocate 
+    if (kval == block->kval) {
+        return ptr;
+    }
+
+    // allocate a new block for new size
+    void *new_block = buddy_malloc(pool, size);
+    if (new_block == NULL) {
+        return NULL;
+    }
+
+    // Copy the data
+    size_t old_block_size = 1 << block->kval;
+    size_t new_block_size = 1 << kval;
+    size_t data_size = old_block_size < new_block_size ? old_block_size : new_block_size;
+
+    memcpy(new_block, ptr, data_size);
+
+    // Free the old block
+    buddy_free(pool, ptr);
+
+    return new_block;
 }
 
 
@@ -181,6 +218,14 @@ void buddy_init(struct buddy_pool *pool, size_t size) {
     ptr->prev = &pool->avail[pool->kval_m];
 }
 
+  /**
+   * Inverse of buddy_init.
+   *
+   * Notice that this function does not change the value of pool itself,
+   * hence it still points to the same (now invalid) location.
+   *
+   * @param pool The memory pool to destroy
+   */
 void buddy_destroy(struct buddy_pool *pool) {
     int status = munmap(pool->base, pool->numbytes);
 
