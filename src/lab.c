@@ -69,7 +69,7 @@ void *buddy_malloc(struct buddy_pool *pool, size_t size) {
     // if not find next larger size until free block
     for (size_t k = kval; k <= pool->kval_m; k++) {
         if (pool->avail[k].tag == BLOCK_AVAIL) {
-            fprintf(stderr, "Found available block of size 2^%zu\n", k);
+            printf("Found block at %p\n", (void *)&pool->avail[k]);
             // "remove" from available list so no one else can use it
             pool->avail[k].tag = BLOCK_RESERVED;
 
@@ -82,6 +82,8 @@ void *buddy_malloc(struct buddy_pool *pool, size_t size) {
                 buddy->next = pool->avail[k].next;
                 pool->avail[k].next = buddy;
             }
+            fprintf(stderr, "k = %zu, pool->avail[%zu] = %p, next = %p, prev = %p\n", 
+            k, k, (void *)&pool->avail[k], (void *)pool->avail[k].next, (void *)pool->avail[k].prev);
             return (void *)((char *)pool->base + ((char *)&pool->avail[k] - (char *)pool->avail));
         }
     }
