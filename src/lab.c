@@ -209,20 +209,19 @@ void buddy_init(struct buddy_pool *pool, size_t size) {
     pool->numbytes = UINT64_C(1) << pool->kval_m;
 
     pool->base = mmap(NULL, pool->numbytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (pool->base == MAP_FAILED) {
+    if (pool == MAP_FAILED) {
         perror("mamp-test: could not allocate memory pool!");
     }
 
     for (unsigned int i = 0; i <= pool->kval_m; i++) {
-        pool->avail[i].next = &pool->avail[i + 1];
-        pool->avail[i].prev = &pool->avail[i - 1];
+        pool->avail[i].next = &pool->avail[i];
+        pool->avail[i].prev = &pool->avail[i];
         pool->avail[i].kval = i;
         pool->avail[i].tag = BLOCK_UNUSED;
     }
 
-    pool->avail[pool->kval_m].next = &pool->avail[0];
-    pool->avail[pool->kval_m].prev = &pool->avail[pool->kval_m - 1];
-    
+    pool->avail[pool->kval_m].next = pool->base;
+    pool->avail[pool->kval_m].prev = pool->base;
     struct avail *ptr = (struct avail *) pool->base;
     ptr->tag = BLOCK_AVAIL;
     ptr->kval = pool->kval_m;
