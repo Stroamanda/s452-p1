@@ -1,6 +1,8 @@
 #include "../src/lab.h"
 #include <errno.h>
 #include <sys/mman.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <stdio.h> 
 #include <string.h>
 
@@ -12,6 +14,7 @@
    */
 size_t btok(size_t bytes) {
     unsigned int count = 0;
+    if (bytes == 1) return 0;
 
     if (bytes != 1) {
         bytes--;
@@ -22,7 +25,7 @@ size_t btok(size_t bytes) {
         count++;
     }
 
-    return count - 1;
+    return count;
 }
 
 
@@ -69,21 +72,29 @@ void *buddy_malloc(struct buddy_pool *pool, size_t size) {
     // if not find next larger size until free block
     for (size_t k = kval; k <= pool->kval_m; k++) {
         fprintf(stderr, "Checking block %zu: avail[%zu] = %p, tag = %d\n", k, k, (void *)&pool->avail[k], pool->avail[k].tag);
-        if (pool->avail[k].tag == BLOCK_AVAIL) {
-            printf("Found block at %p\n", (void *)&pool->avail[k]);
+        if (pool->avail[k].tag == BLOCK_UNUSED || pool->avail[k].tag == BLOCK_AVAIL) {
             // "remove" from available list so no one else can use it
-            pool->avail[k].tag = BLOCK_RESERVED;
+            struct avail *L = &pool->avail[k];
+            struct avail *P = L->next;
+            pool->avail[k] = *P;
+            L->tag = BLOCK_RESERVED;
 
             while (k > kval) {
                 k--;
-                struct avail *buddy = buddy_calc(pool, &pool->avail[k + 1]);
-                buddy->kval = k;
-                buddy->tag = BLOCK_AVAIL;
+                P = (struct avail *)((uintptr_t)L + (UINT64_C(1) << k));
+                P->kval = k;
+                P->tag = BLOCK_AVAIL;
+                P->next = P->prev = &pool->avail[k];
+                pool->avail[k].next = pool->avail[k].prev = P;
+                // struct avail *buddy = buddy_calc(pool, &pool->avail[k + 1]);
+                // buddy->kval = k;
+                // buddy->tag = BLOCK_AVAIL;
 
-                buddy->next = pool->avail[k].next;
-                pool->avail[k].next = buddy;
+                // buddy->next = pool->avail[k].next;
+                // pool->avail[k].next = buddy;
             }
-            return (void *)((char *)pool->base + (k << DEFAULT_K));
+            void *block = (void *)(L + 1);
+            return block;
         }
     }
     // if larger block isn't found, fails
@@ -109,31 +120,57 @@ void *buddy_malloc(struct buddy_pool *pool, size_t size) {
    */
 void buddy_free(struct buddy_pool *pool, void *ptr) {
     if (ptr == NULL) {
+        fprintf(stderr, "Error: ptr is NULL\n");
         return;
     }
-    struct avail *block = (struct avail *)ptr;
+    struct avail *block = (struct avail *)ptr - 1;
     size_t blockSize = UINT64_C(1) << block->kval;
     size_t blockAddress = (char *) block - (char *) pool->base;
 
+
+    block->tag = BLOCK_UNUSED;
+
+
     // check for buddy size k_val for block at address ptr
-    while (block->kval < pool->kval_m) {
+    while (block->kval <= pool->kval_m) {
         struct avail *buddy = (struct avail *)((char *)pool->base + (blockAddress ^ blockSize));
 
-        // if buddy not available add freed block to kth list
-        if (buddy->tag != BLOCK_AVAIL) {
-            block->tag = BLOCK_AVAIL;
-            pool->avail[block->kval].tag = BLOCK_AVAIL;
-            break;
+
+       
+        int buddy_found = 0;
+        for (size_t i = 0; i < pool->kval_m; i++) {
+            if ((char *)&pool->avail[i] == (char *)buddy) {
+                buddy_found = 1;
+                break;
+            }
         }
+        // if buddy no buddy add to kth list
+        if (buddy_found == 0) {
+            block->next = pool->avail[block->kval].next;
+            block->prev = &pool->avail[block->kval];
+            pool->avail[block->kval].next->prev = block;
+            pool->avail[block->kval].next = block;
+            return;
+        }
+
 
         // merge free block with buddy in kth list, set k = k + 1
         block = (struct avail *) ((char *) pool->base + (blockAddress & ~blockSize));
-        block->tag = BLOCK_AVAIL;
-        blockAddress = blockAddress & ~blockSize;
+
+
+        block->tag = BLOCK_UNUSED;
         blockSize <<= 1;
         block->kval++;
     }
+
+
+    block->next = pool->avail[block->kval].next;
+    block->prev = &pool->avail[block->kval];
+    pool->avail[block->kval].next->prev = block;
+    pool->avail[block->kval].next = block;
 }
+
+
 
   /**
    * Changes the size of the memory block pointed to by ptr.
@@ -164,7 +201,7 @@ void *buddy_realloc(struct buddy_pool *pool, void *ptr, size_t size) {
         return buddy_malloc(pool, size);
     } 
 
-    size_t kval = btok(size);
+    size_t kval = btok(size) - 1;
     struct avail *block = (struct avail *) ptr;
 
     // if the same size no need to reallocate 
@@ -200,7 +237,7 @@ void buddy_init(struct buddy_pool *pool, size_t size) {
     pool->numbytes = UINT64_C(1) << pool->kval_m;
 
     pool->base = mmap(NULL, pool->numbytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (pool == MAP_FAILED) {
+    if (pool->base == MAP_FAILED) {
         perror("mamp-test: could not allocate memory pool!");
     }
 
@@ -210,18 +247,16 @@ void buddy_init(struct buddy_pool *pool, size_t size) {
         pool->avail[i].kval = i;
         pool->avail[i].tag = BLOCK_UNUSED;
     }
-
     pool->avail[pool->kval_m].next = pool->base;
     pool->avail[pool->kval_m].prev = pool->base;
+
+
     struct avail *ptr = (struct avail *) pool->base;
     ptr->tag = BLOCK_AVAIL;
     ptr->kval = pool->kval_m;
     ptr->next = &pool->avail[pool->kval_m];
     ptr->prev = &pool->avail[pool->kval_m];
 
-    pool->avail[pool->kval_m].next = ptr;
-    pool->avail[pool->kval_m].prev = ptr;
-    pool->avail[pool->kval_m].tag = BLOCK_AVAIL;
 }
 
   /**

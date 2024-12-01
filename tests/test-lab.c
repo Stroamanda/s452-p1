@@ -97,6 +97,7 @@ void test_buddy_malloc_one_large(void)
   assert(mem != NULL);
 
   //Move the pointer back and make sure we got what we expected
+  // struct avail *val = (struct avail *)mem;
   struct avail *tmp = (struct avail *)mem - 1;
   assert(tmp->kval == MIN_K);
   assert(tmp->tag == BLOCK_RESERVED);
