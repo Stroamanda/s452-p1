@@ -6,6 +6,7 @@
 #include <stdio.h> 
 #include <string.h>
 
+int isInit = 0;
 
   /**
    * Converts bytes to its equivalent K value defined as bytes <= 2^K
@@ -29,12 +30,6 @@ size_t btok(size_t bytes) {
 }
 
 
-/**
- * Find the buddy of a given pointer and kval relative to the base address we got from mmap
- * @param pool The memory pool to work on (needed for the base addresses)
- * @param buddy The memory block that we want to find the buddy for
- * @return A pointer to the buddy
- */
 struct avail *buddy_calc(struct buddy_pool *pool, struct avail *buddy) {
     // get size of block with bit shift
     size_t blockSize = UINT64_C(1) << buddy->kval;
@@ -50,7 +45,7 @@ struct avail *buddy_calc(struct buddy_pool *pool, struct avail *buddy) {
 
 
 void *buddy_malloc(struct buddy_pool *pool, size_t size) {
-    if (size == 0 || pool == NULL) {
+    if (size <= 0 || isInit == 0) {
         errno = ENOMEM;
         return NULL;
     }
@@ -103,8 +98,7 @@ void *buddy_malloc(struct buddy_pool *pool, size_t size) {
 
 
 void buddy_free(struct buddy_pool *pool, void *ptr) {
-    if (ptr == NULL) {
-        fprintf(stderr, "Error: ptr is NULL\n");
+    if (ptr == NULL || pool == NULL) {
         return;
     }
     struct avail *L = (struct avail *)ptr - 1;
@@ -119,10 +113,10 @@ void buddy_free(struct buddy_pool *pool, void *ptr) {
         P->prev->next = P->next;
         P->next->prev = P->prev;
         
-        L->kval++;
         if (P < L) {
             L = P;
         }
+        L->kval++;
     }
 
     // add back to list
@@ -133,60 +127,35 @@ void buddy_free(struct buddy_pool *pool, void *ptr) {
 
 
 
-  /**
-   * Changes the size of the memory block pointed to by ptr.
-   * The function may move the memory block to a new location
-   * (whose address is returned by the function).
-   * The content of the memory block is preserved up to the
-   * lesser of the new and old sizes, even if the block is
-   * moved to a new location. If the new size is larger,
-   * the value of the newly allocated portion is indeterminate.
-   *
-   * In case that ptr is a null pointer, the function behaves
-   * like malloc, assigning a new block of size bytes and
-   * returning a pointer to its beginning.
-   *
-   * if size is equal to zero, and ptr is not NULL, then the  call
-   * is equivalent to free(ptr)
-   *
-   * @param pool The memory pool
-   * @param ptr Pointer to a memory block
-   * @param size The new size of the memory block
-   * @return Pointer to the new memory block
-   */
 void *buddy_realloc(struct buddy_pool *pool, void *ptr, size_t size) {
-    if (size == 0 && ptr != NULL) {
+    if (pool == NULL || isInit == 0) {
+        errno = ENOMEM;
+        return NULL;
+    } else if (size == 0 && ptr != NULL) {
         buddy_free(pool, ptr);
         return NULL;
     } else if (ptr == NULL) {
         return buddy_malloc(pool, size);
     } 
 
-    size_t kval = btok(size) - 1;
-    struct avail *block = (struct avail *) ptr;
+    size_t kval = btok(size + sizeof(struct avail));
+    struct avail *L = (struct avail *) ptr;
 
     // if the same size no need to reallocate 
-    if (kval == block->kval) {
+    if (kval == L->kval) {
         return ptr;
     }
 
     // allocate a new block for new size
-    void *new_block = buddy_malloc(pool, size);
-    if (new_block == NULL) {
-        return NULL;
-    }
+    void *newL = buddy_malloc(pool, size);
 
-    // Copy the data
-    size_t old_block_size = 1 << block->kval;
-    size_t new_block_size = 1 << kval;
-    size_t data_size = old_block_size < new_block_size ? old_block_size : new_block_size;
-
-    memcpy(new_block, ptr, data_size);
+    // Copy the data into the new allocated space
+    memcpy(newL, ptr, (UINT64_C(1) << kval) - sizeof(struct avail));
 
     // Free the old block
     buddy_free(pool, ptr);
 
-    return new_block;
+    return newL;
 }
 
 
@@ -217,7 +186,7 @@ void buddy_init(struct buddy_pool *pool, size_t size) {
 
     pool->avail[pool->kval_m].next = ptr;
     pool->avail[pool->kval_m].prev = ptr;
-
+    isInit = 1;
 }
 
   /**
@@ -229,6 +198,7 @@ void buddy_init(struct buddy_pool *pool, size_t size) {
    * @param pool The memory pool to destroy
    */
 void buddy_destroy(struct buddy_pool *pool) {
+    isInit = 0;
     int status = munmap(pool->base, pool->numbytes);
 
     if (status == -1) {
