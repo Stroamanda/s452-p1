@@ -8,11 +8,6 @@
 
 int isInit = 0;
 
-  /**
-   * Converts bytes to its equivalent K value defined as bytes <= 2^K
-   * @param bytes The bytes needed
-   * @return K The number of bytes expressed as 2^K
-   */
 size_t btok(size_t bytes) {
     unsigned int count = 0;
     if (bytes == 1) return 0;
@@ -31,14 +26,11 @@ size_t btok(size_t bytes) {
 
 
 struct avail *buddy_calc(struct buddy_pool *pool, struct avail *buddy) {
-    // get size of block with bit shift
-    size_t blockSize = UINT64_C(1) << buddy->kval;
-
     // get block address by subtracting the base address
     size_t blockAddress = (char *) buddy - (char *) pool->base;
 
     // get the buddy address by using xor operator
-    size_t buddyAddress = blockAddress ^ blockSize;
+    size_t buddyAddress = blockAddress ^ (UINT64_C(1) << buddy->kval);
 
     return (struct avail *)((char *)pool->base + buddyAddress); 
 }
@@ -171,7 +163,7 @@ void buddy_init(struct buddy_pool *pool, size_t size) {
         perror("mamp-test: could not allocate memory pool!");
     }
 
-    for (unsigned int i = 0; i <= pool->kval_m; i++) {
+    for (unsigned int i = 0; i < pool->kval_m; i++) {
         pool->avail[i].next = &pool->avail[i];
         pool->avail[i].prev = &pool->avail[i];
         pool->avail[i].kval = i;
@@ -189,14 +181,7 @@ void buddy_init(struct buddy_pool *pool, size_t size) {
     isInit = 1;
 }
 
-  /**
-   * Inverse of buddy_init.
-   *
-   * Notice that this function does not change the value of pool itself,
-   * hence it still points to the same (now invalid) location.
-   *
-   * @param pool The memory pool to destroy
-   */
+
 void buddy_destroy(struct buddy_pool *pool) {
     isInit = 0;
     int status = munmap(pool->base, pool->numbytes);
@@ -205,7 +190,3 @@ void buddy_destroy(struct buddy_pool *pool) {
         perror("buddy: destory failed!");
     }
 }
-
-// int myMain(int argc, char** argv) {
-
-// }
